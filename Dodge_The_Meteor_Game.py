@@ -1,24 +1,91 @@
 import pygame
 import random
 import time
+import os
+import random
 pygame.font.init()
 
-img_file = "/Users/beyazituysal/Documents/PythonProjects/PygameGames/TestAiGame/imgs/meteor_dodge/"
 
 WIDTH = 600
 HEIGHT = 700
 
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Dodge This!")
-PLAYER = pygame.transform.scale(pygame.image.load(img_file+"astronaut_guy.png"), (WIDTH, HEIGHT))
+
+ASTRONAUT = pygame.transform.scale(pygame.image.load(os.path.join("imgs/meteor_dodge","astronaut_guy.png")), (WIDTH, HEIGHT))
+ASTRONAUT = pygame.transform.scale(ASTRONAUT, (64,64))
 
 
-BG = pygame.transform.scale(pygame.image.load(img_file+"bg.jpeg"), (WIDTH, HEIGHT))
+METEORS_IMG = [pygame.transform.scale2x(pygame.image.load(os.path.join("imgs/meteor_dodge","meteor1.png"))),
+           pygame.transform.scale2x(pygame.image.load(os.path.join("imgs/meteor_dodge","meteor2.png"))),
+           pygame.transform.scale2x(pygame.image.load(os.path.join("imgs/meteor_dodge","meteor3.png"))),
+           pygame.transform.scale2x(pygame.image.load(os.path.join("imgs/meteor_dodge","meteor4.png"))),
+           pygame.transform.scale2x(pygame.image.load(os.path.join("imgs/meteor_dodge","meteor5.png")))]
+
+METEORS = []
+
+for img in METEORS_IMG:
+    img = pygame.transform.scale(img, (32,32))
+    METEORS.append(img)
+
+
+
+BG = pygame.transform.scale(pygame.image.load(os.path.join("imgs/meteor_dodge","bg.jpeg")), (WIDTH, HEIGHT))
 
 FONT = pygame.font.SysFont("comicsans",30)
 
 ITEM_W, ITEM_H = 10, 10
 ITEM_SPD = 5
+
+class Player:
+    width = 64
+    height = 64
+    VEL = 5
+    dir = "right"
+    angle = 0
+    
+    def __init__(self, x, y) -> None:
+        self.x = x
+        self.y = y
+        self.img = ASTRONAUT
+        self.img_rvrs = pygame.transform.flip(self.img, True, False)
+        self.mask = pygame.mask.from_surface(self.img)
+
+    def draw(self, window):
+        if self.dir == "right":
+            self.angle = 330
+            rotated_player = pygame.transform.rotate(self.img, self.angle)
+
+        elif self.dir == "left":
+            self.angle = 30
+            rotated_player = pygame.transform.rotate(self.img_rvrs, self.angle)
+
+        window.blit(rotated_player, (self.x, self.y))
+
+
+class Meteor:
+    width = 32
+    height = 32
+    angle = 0
+
+    def __init__(self, x, y) -> None:
+        self.x = x
+        self.y = y
+        self.img = METEORS[random.randint(0,4)]
+        self.mask = pygame.mask.from_surface(self.img)
+
+    def move(self):
+        self.y += ITEM_SPD
+
+    def draw(self, window):
+        rotated_item = pygame.transform.rotate(self.img, self.angle)
+        window.blit(rotated_item, (self.x, self.y))
+        self.angle += 1
+
+def collide(obj1, obj2):
+    offset_x = obj2.x - obj1.x
+    offset_y = obj2.y - obj1.y
+    return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) != None
 
 def draw(player, elapsed_time, items):
     WIN.blit(BG, (0,0))
@@ -26,60 +93,68 @@ def draw(player, elapsed_time, items):
     time_text = FONT.render(f"{round(elapsed_time)}",1,"white")
     WIN.blit(time_text,(10, 10))
 
-    pygame.draw.rect(WIN,"green",player)
+
+    player.draw(WIN)
+
 
     for item in items:
-        pygame.draw.rect(WIN,"white",item)
+        item.draw(WIN)
+        
 
     pygame.display.update()
 
-player_spd = 5
 
 def main():
     run = True
     hit = False
-    player = pygame.Rect(200, HEIGHT - 70, 40, 60)
+
+    player = Player(200,HEIGHT - 100)
 
     clock = pygame.time.Clock()
     start_time = time.time()
     elapsed_time = 0
 
     item_add_increment = 2000
-    item_count = 0
+    meteor_count = 0
 
-    items = []
+    meteors = []
+    item_angle = 0
+    player_angle = 0
 
     while run:
-        item_count += clock.tick(60)
+        meteor_count += clock.tick(60)
         elapsed_time = time.time() - start_time
-
-        if item_count > item_add_increment:
-            for _ in range(random.randint(3,7)):
-                item_x = random.randint(10, WIDTH - ITEM_W)
-                item = pygame.Rect(item_x, -ITEM_H, ITEM_W, ITEM_H)
-                items.append(item)
-
-            item_add_increment = max(200, item_add_increment - 50)
-            item_count = 0
 
         # quit game
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-                break
+                quit()
+
+        if meteor_count > item_add_increment:
+            for _ in range(random.randint(3,7)):# how many meteor
+                meteor_x = random.randint(0, WIDTH - 32)
+                meteor = Meteor(meteor_x, 0)
+                meteors.append(meteor)
+
+            item_add_increment = max(200, item_add_increment - 50) # decreasing meteor coming time
+            meteor_count = 0
         
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT] and (player.x - player_spd >= 10):
-            player.x -= player_spd
-        if keys[pygame.K_RIGHT] and (player.x + player_spd + player.width <= WIDTH-10):
-            player.x += player_spd
+        if keys[pygame.K_LEFT] and (player.x - player.VEL >= 10):
+            player.dir = "left"
+            player.x -= player.VEL
+        if keys[pygame.K_RIGHT] and (player.x + player.VEL + player.width <= WIDTH-10):
+            player.dir = "right"
+            player.x += player.VEL
 
-        for item in items[:]:
-            item.y += ITEM_SPD
-            if item.y > HEIGHT:
-                items.remove(item)
-            elif (item.y + item.height >= player.y) and (item.colliderect(player)):
-                items.remove(item)
+        for meteor in meteors[:]:
+            meteor.move()
+
+            if meteor.y > HEIGHT:
+                meteors.remove(meteor)
+            elif (meteor.y + meteor.height >= player.y) and collide(meteor, player):
+                meteors.remove(meteor)
                 hit = True
                 break
 
@@ -87,10 +162,12 @@ def main():
             lost_text = FONT.render("You Lost!", 1, "white")
             WIN.blit(lost_text, (WIDTH/2 - lost_text.get_width()/2, HEIGHT/2 - lost_text.get_height()/2))
             pygame.display.update()  
-            pygame.time.delay(4000)
+            pygame.time.delay(3000)
             break
 
-        draw(player, elapsed_time, items)
+        draw(player, elapsed_time, meteors)
+        item_angle += 1
+
     pygame.quit()
 
 if __name__ == "__main__":
